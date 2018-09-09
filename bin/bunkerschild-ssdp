@@ -1,0 +1,79 @@
+#!/usr/bin/php
+<?php
+
+ /***************************************************************************************************************\
+ *                                                                                                               *
+ * THIS FILE IS PART OF THE BUNKERSCHILD-FRAMEWORK AND IS PUBLISHED UNDER THE CC BY-NC-ND 4.0 LICENSE            * 
+ *                                                                                                               * 
+ * AUTHOR, LICENSOR AND COPYRIGHT OWNER (C)2018 Oliver Welter <contact@verbotene.zone>                           *
+ *                                                                                                               * 
+ * ************************************************************************************************************* *
+ *                                                                                                               *
+ * THE CC BY-NC-ND 4.0 LICENSE:                                                                                  *
+ * For details see also: https://creativecommons.org/licenses/by-nc-nd/4.0/                                      *
+ *                                                                                                               *
+ * By exercising the Licensed Rights, defined in ./LICENSE/LICENSE.EN                                            *
+ * (or in other languages LICENSE.<AR|DE|FI|FR|HR|ID|IT|JA|MI|NL|NO|PL|SV|TR|UK>),                               *
+ * You accept and agree to be bound by the terms and conditions of this                                          *
+ *                                                                                                               *
+ * Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License ("Public License"). * 
+ *                                                                                                               *
+ * To the extent this Public License may be interpreted as a contract, You are granted the Licensed Rights in    *
+ * consideration of Your acceptance of these terms and conditions, and the Licensor grants You such rights in    *
+ * consideration of benefits the Licensor receives from making the Licensed Material available under these       *
+ * terms and conditions.                                                                                         *
+ *                                                                                                               *
+ \***************************************************************************************************************/
+
+declare(ticks = 1);
+
+chdir(__DIR__);
+
+ini_set("display_errors", 0);
+ini_set("error_reporting", 0);
+
+include_once dirname(__DIR__).'/lib/SSDP/vendor/autoload.php';
+
+use Kemer\Ssdp\Listener\LogListener;
+use Kemer\Ssdp\Ssdp;
+use Kemer\Ssdp\Multicast\MulticastServer;
+use Kemer\Ssdp\SsdpEvent;
+use Kemer\Ssdp\Listener;
+use Symfony\Component\EventDispatcher\EventDispatcher;
+
+// create event dispatcher
+$event_dispatcher = new EventDispatcher();
+
+// create SSDP server
+$ssdp_server = new Ssdp(new MulticastServer(), $event_dispatcher);
+
+// Add event listeners
+$event_dispatcher->addListener(SsdpEvent::NOTIFY, [new Listener\NotifyListener(), "onNotify"]);
+$event_dispatcher->addListener(SsdpEvent::SEARCH, [new Listener\SearchListener(), "onSearch"]);
+$event_dispatcher->addListener(SsdpEvent::DISCOVER, [new Listener\DiscoverListener(), "onDiscover"]);
+
+// Add log-listener to see an events
+$event_dispatcher->addSubscriber(new LogListener());
+
+require_once("../lib/BunkerschildFramework/bootstrap.php");
+
+// Superglobal devices store
+$devices = null;
+
+$ssdp = new \BunkerschildFramework\SSDP($__BUNKERSCHILD);
+
+$ssdp->register_signal_defaults();
+$ssdp->register_available_methods();
+$ssdp->register_available_signals();
+$ssdp->register_args();
+$ssdp->register_ssdp($ssdp_server);
+$ssdp->register_event_dispatcher($event_dispatcher);
+
+$ssdp->enable_async_signals();
+$ssdp->trap_signals();
+$ssdp->ticks_init();
+
+$ssdp->register_pid_file();
+$ssdp->daemon_log_open();
+
+$ssdp->execute();
